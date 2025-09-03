@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1220" />
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" sizes="180x180" />
+  <title>Face Enrollment & Verification</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon-192.svg" sizes="192x192" type="image/svg+xml" />
+  <link rel="icon" href="./icons/icon-512.svg" sizes="512x512" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Light defaults */
+    :root{
+      --bg:#f7f8fa; --bg-start:#ffffff; --bg-end:#eef1f7;
+      --text:#0b1220; --panel:#ffffff; --muted:#5f6b7a;
+      --primary:#0ea5e9; --primary-700:#0284c7; --accent:#22c55e; --danger:#dc2626; --success:#16a34a;
+      --border: rgba(10, 20, 30, 0.12);
+      --theme-color: #ffffff; /* for meta theme-color */
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#0b1020; --bg-start:#0b1020; --bg-end:#0f1533;
+        --text:#e5e7eb; --panel:#121732; --muted:#9aa3b2;
+        --primary:#4f46e5; --primary-700:#4338ca; --accent:#06b6d4; --danger:#ef4444; --success:#10b981;
+        --border: rgba(255, 255, 255, 0.12);
+        --theme-color: #0b1020;
+      }
+    }
+    /* Manual theme overrides */
+    :root[data-theme="light"]{
+      --bg:#f7f8fa; --bg-start:#ffffff; --bg-end:#eef1f7;
+      --text:#0b1220; --panel:#ffffff; --muted:#5f6b7a;
+      --primary:#0ea5e9; --primary-700:#0284c7; --accent:#22c55e; --danger:#dc2626; --success:#16a34a;
+      --border: rgba(10, 20, 30, 0.12);
+      --theme-color: #ffffff;
+    }
+    :root[data-theme="dark"]{
+      --bg:#0b1020; --bg-start:#0b1020; --bg-end:#0f1533;
+      --text:#e5e7eb; --panel:#121732; --muted:#9aa3b2;
+      --primary:#4f46e5; --primary-700:#4338ca; --accent:#06b6d4; --danger:#ef4444; --success:#10b981;
+      --border: rgba(255, 255, 255, 0.12);
+      --theme-color: #0b1020;
+    }
+    body{ background:linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%); color:var(--text); font-family: Inter, system-ui, Arial; }
+    .wrap{ max-width:1100px; margin:24px auto; padding:0 16px; }
+    .header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .title{ display:flex; align-items:center; gap:12px; }
+    .title h1{ margin:0; font-size:22px; }
+    .badge{ padding:2px 8px; border-radius:999px; font-size:12px; background:#0ea5e9; color:white; }
+    .grid{ display:grid; grid-template-columns: 1.3fr 0.7fr; gap:16px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+    .card{ background:linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.03) 100%); border:1px solid rgba(255,255,255,0.08); border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    .card .card-h{ padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; }
+    .card .card-b{ padding:16px; }
+    .media{ position:relative; }
+    video{ width:100%; border-radius:12px; background:#0f172a; }
+    canvas{ width:100%; border-radius:12px; background:transparent; }
+    canvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; }
+    input[type=text]{ padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.25); color:#e5e7eb; }
+    button{ padding:10px 14px; border:0; border-radius:10px; background:var(--primary); color:#fff; cursor:pointer; transition: transform .05s ease, background .2s ease; }
+    button:hover{ background:var(--primary-700); }
+    button.secondary{ background:#334155; }
+    button.ghost{ background:transparent; border:1px solid rgba(255,255,255,0.15); }
+    button:disabled{ opacity:.6; cursor:not-allowed; }
+    .status{ margin-top:8px; display:flex; align-items:center; gap:8px; color:#cbd5e1; }
+    .dot{ width:10px; height:10px; border-radius:50%; background:#64748b; display:inline-block; }
+    .dot.ok{ background:var(--success); }
+    .dot.err{ background:var(--danger); }
+    .list{ display:flex; flex-direction:column; gap:8px; max-height:280px; overflow:auto; }
+    .person{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); }
+    .hint{ font-size:13px; color:var(--muted); }
+    .spinner{ width:16px; height:16px; border:2px solid rgba(127,127,127,0.25); border-top-color:currentColor; border-radius:50%; animation:spin .9s linear infinite; display:none; color:var(--text); }
+    .busy .spinner{ display:inline-block; }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+
+    /* Bottom navigation (WhatsApp-like) */
+    .bottom-nav{ position:fixed; left:0; right:0; bottom:0; height:60px; background:var(--panel); border-top:1px solid var(--border); display:flex; justify-content:space-around; align-items:center; z-index:1000; }
+    .bn-btn{ background:none; border:none; color:var(--text); opacity:0.9; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; }
+    .bn-btn svg{ width:24px; height:24px; fill: currentColor; }
+    .bn-btn:active{ opacity:1; }
+    @media (min-width: 900px){ .bottom-nav{ display:none; } } /* hide on large desktop if not needed */
+
+    /* Camera close button */
+    .cam-wrap{ position:relative; }
+    .cam-close{ position:absolute; top:8px; right:8px; width:32px; height:32px; border-radius:50%; background:var(--panel); border:1px solid var(--border); color:var(--text); display:none; align-items:center; justify-content:center; opacity:.9; }
+    .cam-close svg{ width:18px; height:18px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title">
+        <span class="badge">Face</span>
+        <h1>Attendance</h1>
+      </div>
+
+  <!-- Bottom navigation (icon-only, WhatsApp-like) -->
+  <nav class="bottom-nav" aria-label="Primary">
+    <button id="bn-enroll" class="bn-btn" aria-label="Enroll">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.33 0-8 2.17-8 4.5V21h7v-2h2v2h7v-2.5C20 16.17 16.33 14 12 14Zm8-5h-3V6h-2v3H12v2h3v3h2v-3h3Z"/></svg>
+      <span>Enroll</span>
+    </button>
+    <button id="bn-verify" class="bn-btn" aria-label="Verify">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.8 9.7 8 11 4.2-1.3 8-6 8-11V5Zm0 13 4.24-4.24-1.41-1.41L12 12.17l-1.83-1.82-1.41 1.41Z"/></svg>
+      <span>Verify</span>
+    </button>
+    <button id="bn-refresh" class="bn-btn" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.9 9h-2.05A6 6 0 1 1 12 6a5.96 5.96 0 0 1 4.24 1.76L13 11h7V4Z"/></svg>
+      <span>Refresh</span>
+    </button>
+    <button id="bn-install" class="bn-btn" aria-label="Install">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10l3.5-3.5 1.4 1.4L12 16.8 7.1 10.9l1.4-1.4L11 13V3h1ZM5 19h14v2H5Z"/></svg>
+      <span>Install</span>
+    </button>
+  </nav>
+      <div class="actions">
+        <button id="btn-install" class="ghost">Install</button>
+        <button id="btn-refresh" class="ghost">Refresh</button>
+      </div>
+    </div>
+
+    <!-- iOS Install helper -->
+    <div id="install-help" style="position:fixed;left:0;right:0;bottom:0;display:none;background:#0b1220cc;color:#e2e8f0;padding:14px 16px;border-top:1px solid rgba(255,255,255,0.08);backdrop-filter: blur(6px);z-index:9999;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="font-size:14px;line-height:1.4;">
+          <strong>Add to Home Screen</strong><br/>
+          On iPhone/iPad: open Safari Share button, then select <em>Add to Home Screen</em>.
+        </div>
+        <button id="install-help-close" class="ghost" style="border:1px solid rgba(255,255,255,0.15);">Got it</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-h">
+          <div>Camera</div>
+          <div class="row"><div class="spinner" id="busy-spin"></div></div>
+        </div>
+        <div class="card-b">
+          <div class="cam-wrap">
+            <video id="face-video" width="640" height="480" autoplay muted playsinline style="width:100%; border-radius:10px; display:block; background:#111"></video>
+            <canvas id="face-canvas" width="640" height="480" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;"></canvas>
+            <button id="btn-close-camera" class="cam-close" title="Close camera" aria-label="Close camera">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg>
+            </button>
+          </div>
+          <div class="row" style="margin-top:12px; gap:8px; align-items:center;">
+            <input id="enroll-name" type="text" placeholder="Name" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.2); color:#e5e7eb;" />
+            <button id="btn-enroll" title="Add face">
+              <svg viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;vertical-align:-2px;fill:currentColor;margin-right:6px;"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.33 0-8 2.17-8 4.5V21h7v-2h2v2h7v-2.5C20 16.17 16.33 14 12 14Zm8-5h-3V6h-2v3H12v2h3v3h2v-3h3Z"/></svg>
+              Enroll
+            </button>
+            <button id="btn-verify" class="secondary" title="Verify">
+              <svg viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;vertical-align:-2px;fill:currentColor;margin-right:6px;"><path d="M12 2 4 5v6c0 5 3.8 9.7 8 11 4.2-1.3 8-6 8-11V5Zm0 13 4.24-4.24-1.41-1.41L12 12.17l-1.83-1.82-1.41 1.41Z"/></svg>
+              Verify
+            </button>
+            <div id="face-status" class="status"><span class="dot" id="status-dot"></span><span id="status-text">Ready</span></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="card-h">
+          <div>Enrolled</div>
+          <button id="btn-refresh" class="ghost">Refresh</button>
+        </div>
+        <div class="card-b">
+          <div class="list" id="enrolled-list"></div>
+          <div class="hint" style="margin-top:8px;">Tip: Slowly move your head left/right and up/down until coverage completes.</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Load face-api.js library: prefer local vendor copy, fallback to CDN -->
+  <script>
+    window.__loadFaceApi = (async function loadFaceApi(){
+      function loadScript(src){
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load ' + src));
+          document.head.appendChild(s);
+        });
+      }
+      try {
+        await loadScript('./vendor/face-api.min.js');
+      } catch (e) {
+        console.warn('Local face-api not found, falling back to CDN');
+        await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+      }
+    })();
+  </script>
+  <!-- Embedded FaceAPIRecognizer module -->
+  <script>
+    (function(){
+      const FaceDB_KEY = 'face-db:v1';
+
+      class FaceAPIRecognizer {
+        constructor({
+          videoEl,
+          canvasEl,
+          modelUrl = 'models',
+          distanceThreshold = 0.5,
+          secondBestMargin = 0.05,
+          minBoxWidth = 120,
+          minDetectionScore = 0.8,
+          samplesPerPose = 3, // kept for backward compatibility (not used in coverage mode)
+          poseInstructions = [], // deprecated in coverage mode
+          requiredLiveFramesEnroll = 3,
+          requiredLiveFramesVerify = 3,
+          // Face ID–style coverage config
+          requiredAngleSamples = 16,   // number of unique angle bins to collect
+          yawLimit = 40,               // +/- degrees
+          pitchLimit = 20,             // +/- degrees
+          yawStep = 8,                 // bin size in degrees
+          pitchStep = 8,
+        }) {
+          this.video = videoEl;
+          this.canvas = canvasEl;
+          this.ctx = canvasEl.getContext('2d');
+          this.modelUrl = modelUrl;
+          this.distanceThreshold = distanceThreshold;
+          this.secondBestMargin = secondBestMargin;
+          this.minBoxWidth = minBoxWidth;
+          this.minDetectionScore = minDetectionScore;
+          this.samplesPerPose = samplesPerPose;
+          this.poseInstructions = poseInstructions;
+          this.requiredLiveFramesEnroll = requiredLiveFramesEnroll;
+          this.requiredLiveFramesVerify = requiredLiveFramesVerify;
+          this.requiredAngleSamples = requiredAngleSamples;
+          this.yawLimit = yawLimit; this.pitchLimit = pitchLimit;
+          this.yawStep = yawStep; this.pitchStep = pitchStep;
+
+          this.running = false;
+          this.db = this.loadDB();
+          this._liveConsec = 0;
+          this._angleBins = new Set();
+        }
+
+        // ---- Passive Liveness Detection ----
+        // Based on eye blink (EAR), mouth open (MAR), and micro head movement over time.
+        // Maintains recent events to decide if subject is live in the last few seconds.
+        _resetLiveness() {
+          this._live = {
+            lastEAR: null,
+            lastMAR: null,
+            lastAngle: null,
+            blinkEvents: [], // timestamps (ms)
+            mouthEvents: [],
+            moveEvents: [],
+          };
+        }
+
+        _calcEAR(landmarks) {
+          const le = landmarks.getLeftEye();
+          const re = landmarks.getRightEye();
+          const ear = (eye) => {
+            // EAR = (||p2-p6|| + ||p3-p5||) / (2*||p1-p4||)
+            const d = (a,b)=> Math.hypot(a.x-b.x, a.y-b.y);
+            return ((d(eye[1], eye[5]) + d(eye[2], eye[4])) / (2*d(eye[0], eye[3])));
+          };
+          return (ear(le) + ear(re)) / 2;
+        }
+
+        _calcMAR(landmarks) {
+          const m = landmarks.getMouth();
+          const d = (a,b)=> Math.hypot(a.x-b.x, a.y-b.y);
+          // Simple MAR: vertical over horizontal
+          const vert = d(m[13], m[19]); // inner lips
+          const horiz = d(m[12], m[16]);
+          return horiz > 0 ? vert / horiz : 0;
+        }
+
+        _calcHeadAngle(landmarks) {
+          const le = landmarks.getLeftEye();
+          const re = landmarks.getRightEye();
+          const nose = landmarks.getNose();
+          const leftCenter = le.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0}); leftCenter.x/=le.length; leftCenter.y/=le.length;
+          const rightCenter = re.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0}); rightCenter.x/=re.length; rightCenter.y/=re.length;
+          const eyeMid = { x:(leftCenter.x+rightCenter.x)/2, y:(leftCenter.y+rightCenter.y)/2 };
+          const noseTip = nose[Math.floor(nose.length/2)] || nose[0];
+          const dx = noseTip.x - eyeMid.x; const dy = noseTip.y - eyeMid.y;
+          return Math.atan2(dy, dx); // radians
+        }
+
+        // Rough 2D proxies for head yaw/pitch in degrees
+        _estimateYawPitch(landmarks) {
+          const le = landmarks.getLeftEye();
+          const re = landmarks.getRightEye();
+          const mouth = landmarks.getMouth();
+          const nose = landmarks.getNose();
+          const leftCenter = le.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0}); leftCenter.x/=le.length; leftCenter.y/=le.length;
+          const rightCenter = re.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0}); rightCenter.x/=re.length; rightCenter.y/=re.length;
+          const eyeMid = { x:(leftCenter.x+rightCenter.x)/2, y:(leftCenter.y+rightCenter.y)/2 };
+          const mouthMid = mouth.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0}); mouthMid.x/=mouth.length; mouthMid.y/=mouth.length;
+          const noseTip = nose[Math.floor(nose.length/2)] || nose[0];
+          const d = (a,b)=> Math.hypot(a.x-b.x, a.y-b.y);
+          const dl = d(noseTip, leftCenter);
+          const dr = d(noseTip, rightCenter);
+          const yawRatio = (dl - dr) / Math.max(1e-6, (dl + dr)); // -1..1
+          const yawDeg = Math.max(-this.yawLimit, Math.min(this.yawLimit, yawRatio * 75)); // scale to ~[-75,75], then clamp
+          const v = mouthMid.y - eyeMid.y;
+          const eyeDist = d(leftCenter, rightCenter);
+          const pitchRatio = v / Math.max(1e-6, eyeDist); // up/down relative to eye spacing
+          const pitchDeg = Math.max(-this.pitchLimit, Math.min(this.pitchLimit, (pitchRatio - 0.6) * 120));
+          // roll (not used for binning) from eye line tilt
+          const rollDeg = (Math.atan2(rightCenter.y - leftCenter.y, rightCenter.x - leftCenter.x) * 180 / Math.PI);
+          return { yawDeg, pitchDeg, rollDeg };
+        }
+
+        _quantizeAngles(yawDeg, pitchDeg) {
+          const qYaw = Math.round(yawDeg / this.yawStep) * this.yawStep;
+          const qPitch = Math.round(pitchDeg / this.pitchStep) * this.pitchStep;
+          const key = `y${qYaw}_p${qPitch}`;
+          // Simple guidance
+          let hint = 'Hold steady';
+          if (yawDeg < -this.yawStep) hint = 'Turn right a bit';
+          else if (yawDeg > this.yawStep) hint = 'Turn left a bit';
+          if (pitchDeg < -this.pitchStep) hint = 'Tilt up a bit';
+          else if (pitchDeg > this.pitchStep) hint = 'Tilt down a bit';
+          return { key, qYaw, qPitch, hint };
+        }
+
+        _drawCoverageRing(x, y, radius, progress) {
+          const ctx = this.ctx;
+          const start = -Math.PI / 2; // top
+          const end = start + (Math.max(0, Math.min(1, progress)) * 2 * Math.PI);
+          // background ring
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+          ctx.lineWidth = 6;
+          ctx.arc(x, y, radius, 0, 2*Math.PI);
+          ctx.stroke();
+          // progress ring
+          ctx.beginPath();
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 6;
+          ctx.arc(x, y, radius, start, end);
+          ctx.stroke();
+        }
+
+        // Smooth box to reduce jitter; if curr missing, keep prev briefly
+        _smoothBox(prev, curr, alpha = 0.35) {
+          if (!prev && curr) return { ...curr };
+          if (prev && !curr) return { ...prev };
+          if (!prev && !curr) return null;
+          return {
+            x: prev.x + alpha * (curr.x - prev.x),
+            y: prev.y + alpha * (curr.y - prev.y),
+            width: prev.width + alpha * (curr.width - prev.width),
+            height: prev.height + alpha * (curr.height - prev.height),
+          };
+        }
+
+        _drawLockBox(box, label, color = '#21d07a') {
+          const ctx = this.ctx;
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+          // Label background
+          const text = label || '';
+          if (text) {
+            ctx.font = '14px system-ui, Arial';
+            const pad = 6;
+            const w = ctx.measureText(text).width + pad * 2;
+            const h = 20;
+            const tx = Math.max(6, box.x);
+            const ty = Math.max(22, box.y - (h + 8));
+            ctx.fillStyle = 'rgba(11,18,32,0.85)';
+            ctx.fillRect(tx, ty, w, h);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.strokeRect(tx, ty, w, h);
+            ctx.fillStyle = '#e5e7eb';
+            ctx.fillText(text, tx + pad, ty + 14);
+          }
+          ctx.restore();
+        }
+
+        _pruneOld(events, now, windowMs) {
+          while (events.length && (now - events[0]) > windowMs) events.shift();
+        }
+
+        _updateLiveness(landmarks) {
+          const now = performance.now();
+          if (!this._live) this._resetLiveness();
+          const LIVENESS_WINDOW = 3500; // ms
+          const BLINK_EAR_THR = 0.21;   // lower indicates closed eyes
+          const MOUTH_MAR_THR = 0.60;   // higher indicates open mouth
+          const MOVE_ANGLE_THR = 0.12;  // ~7 degrees
+
+          const ear = this._calcEAR(landmarks);
+          const mar = this._calcMAR(landmarks);
+          const ang = this._calcHeadAngle(landmarks);
+
+          // Blink detection: falling below threshold from previously higher EAR
+          if (this._live.lastEAR != null && this._live.lastEAR > BLINK_EAR_THR && ear < BLINK_EAR_THR) {
+            this._live.blinkEvents.push(now);
+          }
+          this._live.lastEAR = ear;
+
+          // Mouth open event
+          if (this._live.lastMAR != null && mar > MOUTH_MAR_THR && this._live.lastMAR <= MOUTH_MAR_THR) {
+            this._live.mouthEvents.push(now);
+          }
+          this._live.lastMAR = mar;
+
+          // Head micro-movement detection (angle delta)
+          if (this._live.lastAngle != null && Math.abs(ang - this._live.lastAngle) > MOVE_ANGLE_THR) {
+            this._live.moveEvents.push(now);
+          }
+          this._live.lastAngle = ang;
+
+          // Keep window
+          this._pruneOld(this._live.blinkEvents, now, LIVENESS_WINDOW);
+          this._pruneOld(this._live.mouthEvents, now, LIVENESS_WINDOW);
+          this._pruneOld(this._live.moveEvents, now, LIVENESS_WINDOW);
+
+          const blinkOK = this._live.blinkEvents.length >= 1;
+          const mouthOK = this._live.mouthEvents.length >= 1;
+          const moveOK  = this._live.moveEvents.length >= 1;
+          const isLive = (blinkOK && moveOK) || (mouthOK && moveOK);
+          return { isLive, blinkOK, mouthOK, moveOK, ear, mar };
+        }
+
+        async init() {
+          await faceapi.nets.ssdMobilenetv1.loadFromUri(this.modelUrl);
+          await faceapi.nets.faceLandmark68Net.loadFromUri(this.modelUrl);
+          await faceapi.nets.faceRecognitionNet.loadFromUri(this.modelUrl);
+        }
+
+        async startVideo() {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+          this.video.srcObject = stream;
+          await this.video.play();
+          this.resizeCanvasToVideo();
+        }
+
+        stopVideo() {
+          this.running = false;
+          const stream = this.video.srcObject;
+          if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            this.video.srcObject = null;
+          }
+          this.clearCanvas();
+        }
+
+        resizeCanvasToVideo() {
+          this.canvas.width = this.video.videoWidth || 640;
+          this.canvas.height = this.video.videoHeight || 480;
+        }
+
+        drawText(lines, x = 10, y = 24, color = '#00FF00') {
+          this.ctx.font = '16px Inter, Arial';
+          this.ctx.fillStyle = color;
+          let yy = y;
+          for (const line of lines) {
+            this.ctx.fillText(line, x, yy);
+            yy += 22;
+          }
+        }
+
+        clearCanvas() {
+          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        loadDB() {
+          try {
+            const raw = localStorage.getItem(FaceDB_KEY);
+            if (!raw) return {};
+            const obj = JSON.parse(raw);
+            for (const name of Object.keys(obj)) {
+              obj[name] = obj[name].map(arr => new Float32Array(arr));
+            }
+            return obj;
+          } catch {
+            return {};
+          }
+        }
+
+        saveDB() {
+          const serializable = {};
+          for (const name of Object.keys(this.db)) {
+            serializable[name] = this.db[name].map(f32 => Array.from(f32));
+          }
+          localStorage.setItem(FaceDB_KEY, JSON.stringify(serializable));
+        }
+
+        delete(name) {
+          delete this.db[name];
+          this.saveDB();
+        }
+
+        replace(name, descriptors) {
+          this.db[name] = descriptors;
+          this.saveDB();
+        }
+
+        setThresholds({ distanceThreshold, secondBestMargin }) {
+          if (distanceThreshold != null) this.distanceThreshold = distanceThreshold;
+          if (secondBestMargin != null) this.secondBestMargin = secondBestMargin;
+        }
+
+        async detectOne() {
+          const detection = await faceapi
+            .detectSingleFace(this.video, new faceapi.SsdMobilenetv1Options({ minConfidence: this.minDetectionScore }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+
+          if (!detection) return null;
+          const { detection: det, descriptor, landmarks } = detection;
+          const box = det.box;
+          if (box.width < this.minBoxWidth) return null;
+          return { box, score: det.score, descriptor: new Float32Array(descriptor), landmarks };
+        }
+
+        static euclidean(a, b) {
+          let s = 0;
+          for (let i = 0; i < a.length; i++) {
+            const d = a[i] - b[i];
+            s += d * d;
+          }
+          return Math.sqrt(s);
+        }
+
+        matchDescriptor(desc) {
+          let bestName = 'Unknown';
+          let best = Number.POSITIVE_INFINITY;
+          let second = Number.POSITIVE_INFINITY;
+
+          for (const [name, list] of Object.entries(this.db)) {
+            let personBest = Number.POSITIVE_INFINITY;
+            for (const stored of list) {
+              const dist = FaceAPIRecognizer.euclidean(desc, stored);
+              if (dist < personBest) personBest = dist;
+            }
+            if (personBest < best) {
+              second = best;
+              best = personBest;
+              bestName = name;
+            } else if (personBest < second) {
+              second = personBest;
+            }
+          }
+          return { bestName, bestDist: best, secondBest: second };
+        }
+
+        async enroll(name, onProgress) {
+          await this.startVideo();
+          this.running = true;
+          const collected = [];
+          this._resetLiveness();
+          this._liveConsec = 0;
+          this._angleBins = new Set();
+
+          const required = this.requiredAngleSamples;
+          while (this.running && this._angleBins.size < required) {
+            this.resizeCanvasToVideo();
+            this.clearCanvas();
+            const result = await this.detectOne();
+            if (result) {
+              const { box, descriptor, landmarks } = result;
+              this.ctx.strokeStyle = '#00FF00';
+              this.ctx.lineWidth = 2;
+              this.ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+              // Liveness gating
+              const live = this._updateLiveness(landmarks);
+              if (live.isLive) this._liveConsec += 1; else this._liveConsec = 0;
+              const needLive = this.requiredLiveFramesEnroll;
+              const liveOk = this._liveConsec >= needLive;
+
+              // Pose/angle guidance
+              const { yawDeg, pitchDeg } = this._estimateYawPitch(landmarks);
+              const { key, qYaw, qPitch, hint } = this._quantizeAngles(yawDeg, pitchDeg);
+              const covered = this._angleBins.has(key);
+              const guidance = covered ? 'New angle needed' : hint;
+
+              // Top HUD
+              this.drawText([
+                `Coverage: ${this._angleBins.size}/${required}`,
+                `Yaw:${qYaw}° Pitch:${qPitch}°`,
+                `${guidance}`,
+              ], 10, 24, '#cbd5e1');
+
+              // Coverage progress ring near the face box
+              const cx = box.x + box.width - 28;
+              const cy = Math.max(28, box.y + 28);
+              const prog = this._angleBins.size / required;
+              this._drawCoverageRing(cx, cy, 20, prog);
+
+              // Liveness HUD
+              const lines = liveOk
+                ? [`Liveness: OK (${this._liveConsec}/${needLive})`]
+                : [`Liveness: need ${needLive} live frames`, `Blink:${live.blinkOK?'✓':'×'} Move:${live.moveOK?'✓':'×'} Mouth:${live.mouthOK?'✓':'×'}`];
+              this.drawText(lines, Math.max(10, box.x), Math.max(20, box.y - 28), liveOk ? '#10b981' : '#FFB020');
+
+              if (liveOk && !covered) {
+                // Accept sample for this new angle bin
+                this._angleBins.add(key);
+                collected.push(descriptor);
+                this._liveConsec = 0; // require liveness again for next bin
+                if (typeof onProgress === 'function') onProgress({ done: this._angleBins.size, required });
+                await new Promise(r => setTimeout(r, 250));
+              }
+            } else {
+              // No face
+              this.drawText([`Coverage: ${this._angleBins.size}/${required}`, 'No face / low score / too small'], 10, 24, '#FF4444');
+              this._liveConsec = 0;
+            }
+            await new Promise(r => setTimeout(r, 60));
+          }
+
+          this.stopVideo();
+          if (this._angleBins.size < required) {
+            throw new Error(`Enrollment incomplete: got ${this._angleBins.size}/${required} angles. Try again with more head movement.`);
+          }
+          this.replace(name, collected);
+          return collected.length;
+        }
+
+        async verify(onResult) {
+          await this.startVideo();
+          this.running = true;
+          this._resetLiveness();
+          this._liveConsec = 0;
+          // Verification state
+          let state = 'seeking'; // seeking -> locked -> challenge -> verified
+          let stableFrames = 0;
+          const needStable = 8;
+          let lastBox = null; let stickyMs = 350; let lastSeen = 0;
+          let prevBlink = false, prevMouth = false;
+          // Challenge sequence
+          const pick = (arr)=> arr[Math.floor(Math.random()*arr.length)];
+          const seq = [];
+          const pool = ['blink','openMouth','turnHead','nod'];
+          while (seq.length < 3) { const c = pick(pool); if (!seq.includes(c)) seq.push(c); }
+          let ci = 0; // challenge index
+          let challengeInfo = null; // {type, startYaw, startPitch, startedAt}
+          const yawMove = 12; // degrees
+          const pitchMove = 10; // degrees
+          const maxPerChallengeMs = 6500;
+          let finalName = 'Unknown';
+          let finalShownUntil = 0;
+
+          while (this.running) {
+            this.resizeCanvasToVideo();
+            this.clearCanvas();
+            const now = performance.now();
+            const result = await this.detectOne();
+            let bestDist = 1, bestName = 'Unknown', secondBest = 1;
+            let landmarks = null;
+
+            let curBox = null;
+            if (result) {
+              const { box, descriptor } = result; landmarks = result.landmarks;
+              curBox = box;
+              const match = this.matchDescriptor(descriptor);
+              bestName = match.bestName; bestDist = match.bestDist; secondBest = match.secondBest;
+              lastSeen = now;
+              lastBox = this._smoothBox(lastBox, curBox);
+            } else {
+              if (lastBox && (now - lastSeen) < stickyMs) {
+                // keep using lastBox briefly
+              } else {
+                lastBox = null; stableFrames = 0; state = 'seeking';
+              }
+            }
+
+            // Update liveness every frame if we have landmarks
+            let live = { isLive:false, blinkOK:false, mouthOK:false, moveOK:false };
+            if (landmarks) {
+              live = this._updateLiveness(landmarks);
+              this._liveConsec = live.isLive ? (this._liveConsec + 1) : 0;
+            } else {
+              this._liveConsec = 0;
+            }
+
+            // State transitions
+            if (lastBox) {
+              stableFrames++;
+              if (state === 'seeking' && stableFrames >= needStable) {
+                state = 'locked';
+              }
+            }
+
+            // Draw lock box and status
+            if (lastBox) {
+              let label = '';
+              if (state === 'seeking') label = 'Align face...';
+              else if (state === 'locked') label = 'Face detected ✓';
+              else if (state === 'challenge') label = `Do: ${challengeInfo?.type}`;
+              else if (state === 'verified') label = `${finalName} • Real person`;
+              this._drawLockBox(lastBox, label);
+            } else {
+              this.drawText(['No face / low score / too small'], 10, 24, '#FF4444');
+            }
+
+            // Handle challenges
+            if (state === 'locked') {
+              // Start first challenge
+              const { yawDeg, pitchDeg } = landmarks ? this._estimateYawPitch(landmarks) : {yawDeg:0,pitchDeg:0};
+              challengeInfo = { type: seq[ci], startYaw: yawDeg, startPitch: pitchDeg, startedAt: now };
+              state = 'challenge';
+            } else if (state === 'challenge') {
+              const timeout = now - challengeInfo.startedAt > maxPerChallengeMs;
+              const { yawDeg, pitchDeg } = landmarks ? this._estimateYawPitch(landmarks) : {yawDeg:0,pitchDeg:0};
+              let done = false;
+              const type = challengeInfo.type;
+              if (type === 'blink') {
+                done = (!prevBlink && live.blinkOK);
+              } else if (type === 'openMouth') {
+                done = (!prevMouth && live.mouthOK);
+              } else if (type === 'turnHead') {
+                done = Math.abs(yawDeg - challengeInfo.startYaw) >= yawMove;
+              } else if (type === 'nod') {
+                done = Math.abs(pitchDeg - challengeInfo.startPitch) >= pitchMove;
+              }
+              prevBlink = live.blinkOK; prevMouth = live.mouthOK;
+
+              // HUD instructions
+              const hints = {
+                blink: 'Blink once',
+                openMouth: 'Open and close your mouth',
+                turnHead: 'Turn head left/right',
+                nod: 'Nod up/down',
+              };
+              if (lastBox) this.drawText([`Challenge ${ci+1}/${seq.length}: ${hints[type]}`], Math.max(10,lastBox.x), lastBox.y + lastBox.height + 22, '#cbd5e1');
+
+              if (done || timeout) {
+                ci++;
+                if (ci >= seq.length) {
+                  // Finalize: require recognition + liveness frames
+                  const accept = (bestDist <= this.distanceThreshold) && ((secondBest - bestDist) >= this.secondBestMargin);
+                  const liveOk = this._liveConsec >= this.requiredLiveFramesVerify;
+                  finalName = (accept && liveOk) ? bestName : 'Unknown';
+                  state = 'verified';
+                  finalShownUntil = now + 3500;
+                } else {
+                  // Start next challenge
+                  challengeInfo = { type: seq[ci], startYaw: yawDeg, startPitch: pitchDeg, startedAt: now };
+                }
+              }
+            } else if (state === 'verified') {
+              if (now > finalShownUntil) {
+                // end verification loop automatically
+                this.running = false;
+              }
+            }
+
+            if (typeof onResult === 'function') onResult({ name: finalName, distance: bestDist, state });
+            await new Promise(r => setTimeout(r, 60));
+          }
+          this.stopVideo();
+        }
+
+        stop() { this.running = false; this.stopVideo(); }
+      }
+
+      window.FaceAPIRecognizer = FaceAPIRecognizer;
+    })();
+  </script>
+  <script>
+    (function() {
+      // Service worker registration
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW registration failed', err));
+        });
+      }
+
+      // PWA install prompt handling
+      let deferredPrompt = null;
+      const installBtn = document.getElementById('btn-install');
+      const installHelp = document.getElementById('install-help');
+      const installHelpClose = document.getElementById('install-help-close');
+      if (installHelpClose) installHelpClose.addEventListener('click', ()=> installHelp.style.display = 'none');
+
+      const ua = navigator.userAgent || '';
+      const isIOS = /iphone|ipad|ipod/i.test(ua);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+      installBtn.disabled = true;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.disabled = false;
+      });
+      installBtn.addEventListener('click', async () => {
+        // iOS Safari does not support beforeinstallprompt. Show helper.
+        if (isIOS && !isStandalone) {
+          installHelp.style.display = 'block';
+          return;
+        }
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') {
+            installBtn.disabled = true;
+          }
+          deferredPrompt = null;
+        } else {
+          // Fallback: show brief message
+          setStatus('If your browser supports install, it will show a prompt soon. Otherwise use Add to Home Screen.', true);
+        }
+      });
+      window.addEventListener('appinstalled', () => {
+        installBtn.style.display = 'none';
+      });
+
+      // Sync meta theme-color with current theme variable and mode changes
+      (function syncThemeColor(){
+        const meta = document.querySelector('meta[name="theme-color"]');
+        const apply = ()=> {
+          const val = getComputedStyle(document.documentElement).getPropertyValue('--theme-color').trim() || '#0b1220';
+          if (meta) meta.setAttribute('content', val);
+        };
+        apply();
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        if (mq.addEventListener) mq.addEventListener('change', apply); else mq.addListener && mq.addListener(apply);
+        window.addEventListener('visibilitychange', apply);
+      })();
+      const video = document.getElementById('face-video');
+      const canvas = document.getElementById('face-canvas');
+      const statusText = document.getElementById('status-text');
+      const statusDot = document.getElementById('status-dot');
+      const spinner = document.getElementById('busy-spin');
+      const nameEl = document.getElementById('enroll-name');
+      const listEl = document.getElementById('enrolled-list');
+      const closeCamBtn = document.getElementById('btn-close-camera');
+
+      // Manual theme toggle (system default)
+      const themeBtn = document.createElement('button');
+      themeBtn.className = 'ghost';
+      themeBtn.id = 'btn-theme';
+      themeBtn.title = 'Theme';
+      themeBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:18px;height:18px;vertical-align:-2px;fill:currentColor;margin-right:6px;"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>Theme';
+      document.querySelector('.header .actions')?.insertBefore(themeBtn, document.getElementById('btn-refresh'));
+
+      function applyTheme(mode){
+        const root = document.documentElement;
+        if (!mode || mode === 'system') { root.removeAttribute('data-theme'); localStorage.removeItem('theme'); }
+        else { root.setAttribute('data-theme', mode); localStorage.setItem('theme', mode); }
+        // update theme-color
+        const meta = document.querySelector('meta[name="theme-color"]');
+        const val = getComputedStyle(root).getPropertyValue('--theme-color').trim() || '#0b1020';
+        if (meta) meta.setAttribute('content', val);
+      }
+      // Initialize theme from storage
+      applyTheme(localStorage.getItem('theme') || 'system');
+      themeBtn.addEventListener('click', ()=>{
+        const cur = document.documentElement.getAttribute('data-theme') || 'system';
+        const next = cur === 'system' ? 'dark' : cur === 'dark' ? 'light' : 'system';
+        applyTheme(next);
+        hapticTap();
+        setStatus(`Theme: ${next}`, true);
+      });
+
+      // Bottom nav wiring to existing actions
+      const bnEnroll = document.getElementById('bn-enroll');
+      const bnVerify = document.getElementById('bn-verify');
+      const bnRefresh = document.getElementById('bn-refresh');
+      const bnInstall = document.getElementById('bn-install');
+      if (bnEnroll) bnEnroll.addEventListener('click', ()=>{ hapticTap(); document.getElementById('btn-enroll').click(); });
+      if (bnVerify) bnVerify.addEventListener('click', ()=>{ hapticTap(); document.getElementById('btn-verify').click(); });
+      if (bnRefresh) bnRefresh.addEventListener('click', ()=>{ hapticTap(); document.getElementById('btn-refresh').click(); });
+      if (bnInstall) bnInstall.addEventListener('click', ()=>{ hapticTap(); document.getElementById('btn-install').click(); });
+
+      // Haptics helper
+      function hapticTap(){ try { navigator.vibrate && navigator.vibrate(15); } catch {} }
+
+      // Add haptics to main buttons
+      document.getElementById('btn-enroll').addEventListener('click', hapticTap);
+      document.getElementById('btn-verify').addEventListener('click', hapticTap);
+      document.getElementById('btn-refresh').addEventListener('click', hapticTap);
+      document.getElementById('btn-install').addEventListener('click', hapticTap);
+
+      // Close camera handler
+      if (closeCamBtn) closeCamBtn.addEventListener('click', ()=>{
+        hapticTap();
+        try { rec.stop(); } catch {}
+        setStatus('Camera closed.', true);
+        // hide close button when camera is stopped via close
+        try { closeCamBtn.style.display = 'none'; } catch {}
+      });
+
+      const rec = new window.FaceAPIRecognizer({
+        videoEl: video,
+        canvasEl: canvas,
+        modelUrl: 'models',              // relative to this HTML (scanner/face.html -> scanner/models)
+        distanceThreshold: 0.5,
+        secondBestMargin: 0.05,
+        minBoxWidth: 120,
+        minDetectionScore: 0.8,
+        samplesPerPose: 3
+      });
+
+      function setStatus(msg, ok = null) {
+        statusText.textContent = msg;
+        if (ok === true) { statusDot.classList.add('ok'); statusDot.classList.remove('err'); }
+        else if (ok === false) { statusDot.classList.add('err'); statusDot.classList.remove('ok'); }
+      }
+      function setBusy(b) { spinner.parentElement.classList.toggle('busy', b); }
+      function renderEnrolled(){
+        listEl.innerHTML = '';
+        try {
+          const raw = localStorage.getItem('face-db:v1');
+          if (!raw){ listEl.innerHTML = '<div class="hint">No people enrolled yet.</div>'; return; }
+          const obj = JSON.parse(raw);
+          const names = Object.keys(obj);
+          if (names.length === 0){ listEl.innerHTML = '<div class="hint">No people enrolled yet.</div>'; return; }
+          for (const n of names){
+            const count = (obj[n]||[]).length;
+            const row = document.createElement('div');
+            row.className = 'person';
+            row.innerHTML = `<span>${n}</span><span class="hint">${count} samples</span>`;
+            listEl.appendChild(row);
+          }
+        } catch {
+          listEl.innerHTML = '<div class="hint">Cannot read localStorage.</div>';
+        }
+      }
+
+      async function primeModelsCache(base = 'models') {
+        const manifests = [
+          'ssd_mobilenetv1_model-weights_manifest.json',
+          'face_landmark_68_model-weights_manifest.json',
+          'face_recognition_model-weights_manifest.json',
+          // fallback/optional tiny model manifest (ignored if missing)
+          'tiny_face_detector_model-weights_manifest.json',
+        ];
+        const fetchSafe = async (url) => {
+          try { const r = await fetch(url, { cache: 'no-store' }); return r.ok ? r : null; } catch { return null; }
+        };
+        for (const mf of manifests) {
+          const murl = `${base}/${mf}`;
+          const mr = await fetchSafe(murl);
+          if (!mr) continue;
+          let data = null;
+          try { data = await mr.json(); } catch { continue; }
+          if (!data || !Array.isArray(data.manifest)) continue;
+          for (const item of data.manifest) {
+            if (!item || !Array.isArray(item.paths)) continue;
+            await Promise.all(item.paths.map(p => fetchSafe(`${base}/${p}`)));
+          }
+        }
+      }
+
+      async function ensureInit() {
+        if (!ensureInit.done) {
+          setBusy(true); setStatus('Loading models...');
+          // Ensure face-api library is loaded first (local or CDN)
+          if (window.__loadFaceApi && typeof window.__loadFaceApi.then === 'function') {
+            try { await window.__loadFaceApi; } catch (e) { console.warn('face-api load error', e); }
+          }
+          await rec.init();
+          // Proactively cache manifests and all shard files so offline works afterwards
+          await primeModelsCache('models');
+          setStatus('Models loaded.', true); setBusy(false);
+          ensureInit.done = true;
+        }
+      }
+
+      // Liveness is now integrated into Enroll and Verify automatically.
+
+      // Helper to toggle camera close button
+      function showCamClose(show){ if (closeCamBtn) closeCamBtn.style.display = show ? 'flex' : 'none'; }
+
+      document.getElementById('btn-enroll').addEventListener('click', async () => {
+        const name = (nameEl.value || '').trim();
+        if (!name) { setStatus('Please enter a name.', false); return; }
+        try {
+          await ensureInit(); setBusy(true);
+          setStatus('Enrollment started. Follow prompts on the video.');
+          showCamClose(true);
+          const count = await rec.enroll(name, (p) => {
+            if (p && typeof p.done === 'number' && typeof p.required === 'number') {
+              setStatus(`Enrollment coverage: ${p.done}/${p.required}`);
+            }
+          });
+          setStatus(`Enrollment complete. Collected ${count} samples for ${name}.`, true);
+          renderEnrolled();
+          setBusy(false);
+        } catch (e) {
+          setBusy(false); setStatus('Enrollment error: ' + e.message, false);
+        } finally { showCamClose(false); }
+      });
+
+      document.getElementById('btn-verify').addEventListener('click', async () => {
+        try {
+          await ensureInit(); setBusy(true);
+          setStatus('Verification started. Showing live results.');
+          showCamClose(true);
+          rec.verify(({ name, distance }) => {
+            setStatus(`Result: ${name} (dist: ${distance.toFixed ? distance.toFixed(3) : distance})`);
+          });
+          setBusy(false);
+          // Hide close button when verification finishes (poll rec.running)
+          const iv = setInterval(() => {
+            if (!rec || !rec.running) { clearInterval(iv); showCamClose(false); }
+          }, 300);
+        } catch (e) {
+          setBusy(false); setStatus('Verify error: ' + e.message, false);
+          showCamClose(false);
+        }
+      });
+
+      document.getElementById('btn-stop').addEventListener('click', () => {
+        rec.stop();
+        setStatus('Stopped.');
+      });
+
+      document.getElementById('btn-refresh').addEventListener('click', renderEnrolled);
+      renderEnrolled();
+    })();
+  </script>
+</body>
+</html>
